@@ -1,8 +1,13 @@
 use std;
+use futures;
+use hyper;
 use db;
+use futures::Future;
 use permissions;
 use oauth;
 use diesel;
+use tokio_rocket;
+use hydra_oauthed_client;
 use diesel::Connection;
 use diesel::result::Error as DieselErr;
 use rocket;
@@ -262,17 +267,21 @@ pub struct UserResp {
 }
 
 impl UserResp {
-    pub fn from_user(user: &User, hydra: &hydra::client::Client) -> Result<Self, Error> {
-        let groups = hydra.warden_get_group_names(user.uuid).map_err(|e| {
-            Error::server_error(format!("error getting groups for {:?}: {}", user, e))
-        })?;
-        Ok(UserResp {
-            uuid: user.uuid.simple().to_string(),
-            username: user.username.clone(),
-            role: user.role.clone(),
-            email: user.email.clone(),
-            groups: groups,
-        })
+    pub fn from_user(user: &User, hydra: &hydra_oauthed_client::HydraClientWrapper<hyper::client::HttpConnector>) -> tokio_rocket::Future<UserResp, Error> {
+        let client = hydra.client();
+        tokio_rocket::Future(Box::new(client.warden_api().find_groups_by_member(&user.uuid.simple().to_string())
+            .map(|groups| {
+                UserResp {
+                    uuid: user.uuid.simple().to_string(),
+                    username: user.username.clone(),
+                    role: user.role.clone(),
+                    email: user.email.clone(),
+                    groups: groups.into_iter().map(|g| g.id().unwrap().clone()).collect()
+                }
+            })
+            .map_err(|e| {
+                Error::server_error(format!("unable to find groups for user: {:?}", e))
+            })))
     }
 }
 
@@ -384,11 +393,9 @@ pub fn auth_user(
 }
 
 #[get("/user", format = "application/json")]
-pub fn get_user(user: User, hydra: State<hydra::client::Client>) -> Json<Result<UserResp, Error>> {
-    match UserResp::from_user(&user, &*hydra) {
-        Ok(user) => Json(Ok(user)),
-        Err(e) => Json(Err(e)),
-    }
+pub fn get_user(user: User, hydra: State<hydra::client::ClientBuilder>, handle: tokio_rocket::Handle) -> Json<tokio_rocket::Future<UserResp, Error>> {
+    let client = hydra.build(&(handle.into()));
+    Json(UserResp::from_user(&user, &client))
 }
 
 #[post("/user/create", format = "application/json", data = "<req>")]
