@@ -17,8 +17,8 @@ impl ClientBuilder {
         }
     }
 
-    pub fn build(self, handle: &tokio_core::reactor::Handle) -> hydra_oauthed_client::HydraClientWrapper<hyper::client::HttpConnector> {
+    pub fn build(&self, handle: &tokio_core::reactor::Handle) -> hydra_oauthed_client::HydraClientWrapper<hyper::client::HttpConnector> {
         let client = hyper::Client::new(handle);
-        hydra_oauthed_client::HydraClientWrapper::new(client, &self.base_url, self.client_id, self.client_secret)
+        hydra_oauthed_client::HydraClientWrapper::new(client, &self.base_url.clone(), self.client_id.clone(), self.client_secret.clone())
     }
 }

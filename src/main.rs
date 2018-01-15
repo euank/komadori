@@ -132,12 +132,7 @@ fn main() {
             &env::var("HYDRA_CLIENT_SECRET").expect("Must set HYDRA_CLIENT_SECRET"),
         )
     };
-    {
-        let tmpcore = tokio_core::reactor::Core::new().unwrap();
-        let client = hydra_builder.build(&tmpcore.handle());
-        let init_groups_future = permissions::initialize_groups(client);
-        tmpcore.run(init_groups_future).expect("could not initialize groups");
-    };
+    permissions::initialize_groups(&hydra_builder).unwrap();
 
     let github_oauth_config = {
         let client_id = env::var("GITHUB_CLIENT_ID").expect("GITHUB_CLIENT_ID must be set");
