@@ -2,8 +2,8 @@ use types::{User, CreateGroupRequest};
 use uuid::Uuid;
 use permissions;
 
-pub enum Action {
-    CreateGroup(CreateGroupRequest),
+pub enum Action<'a> {
+    CreateGroup(&'a CreateGroupRequest),
 }
 
 fn user_in_group(user: User, group: Uuid) -> bool {
@@ -18,7 +18,7 @@ fn user_in_group(user: User, group: Uuid) -> bool {
 pub fn is_allowed(user: User, action: Action) -> bool {
     match action {
         Action::CreateGroup(_) => {
-            return user_in_group(user, permissions::admin_group().uuid)
+            return user_in_group(user, *permissions::ADMIN_GROUP)
         }
     }
 }

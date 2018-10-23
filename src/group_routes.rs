@@ -17,5 +17,10 @@ fn create_group(
 ) -> JsonResult<GroupResp> {
     // TODO: this should not require admin, but rather there should be a policy check of some kind.
     // Punting for now.
-    unimplemented!()
+    let req = req.0;
+    if !policy::is_allowed(user.0, policy::Action::CreateGroup(&req)) {
+        return Err(Error::client_error("permission denied".to_string())).into();
+    }
+
+    req.create(&conn).into()
 }

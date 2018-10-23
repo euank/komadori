@@ -10,6 +10,7 @@ use errors::Error;
 use hydra;
 use multi_reactor_drifting;
 use db::users::User as DBUser;
+use db::groups::NewGroup;
 use multi_reactor_drifting::Handle;
 use futures::Future;
 use rocket;
@@ -472,4 +473,31 @@ pub struct CreateGroupRequest {
     pub name: String,
     pub public: bool,
     pub description: String,
+}
+
+impl CreateGroupRequest {
+    pub fn create(&self, conn: &PgConnection) -> Result<GroupResp, Error> {
+        let g = NewGroup{
+            name: self.name.clone(),
+            public: self.public,
+            description: self.description.clone(),
+            uuid: None,
+        };
+
+        use diesel::prelude::*;
+        use db::schema::groups::dsl::*;
+
+        let db_groups: Vec<db::groups::Group> = diesel::insert_into(groups)
+            .values(&g)
+            .on_conflict_do_nothing()
+            .get_results(conn)
+            .map_err(|e| {
+                Error::server_error(format!("error creating group {}: {}", g.name, e))
+            })?;
+
+        match db_groups.first() {
+            None => Err(Error::server_error("empty groups returned, but no db error".to_string())),
+            Some(g) => Ok(g.into()),
+        }
+    }
 }

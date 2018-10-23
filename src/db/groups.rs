@@ -34,3 +34,12 @@ impl Group {
             .load::<User>(&*conn)
     }
 }
+
+#[derive(Insertable)]
+#[table_name = "groups"]
+pub struct NewGroup {
+    pub uuid: Option<Uuid>,
+    pub name: String,
+    pub public: bool,
+    pub description: String,
+}

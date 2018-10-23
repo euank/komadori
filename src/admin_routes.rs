@@ -52,7 +52,7 @@ pub fn bootstrap_admin(
         return Err(Error::client_error("invalid bootstrap token".to_string())).into();
     }
 
-    user.add_group(&conn, permissions::admin_group().uuid)
+    user.add_group(&conn, *permissions::ADMIN_GROUP)
         .map_err(|e| {
             Error::server_error(format!("error adding to group: {:?}", e))
         })
@@ -102,7 +102,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for Admin {
             }
         };
 
-        if u.0.groups.iter().any(|g| { g.uuid == permissions::admin_group().uuid.simple().to_string() }) {
+        if u.0.groups.iter().any(|g| { g.uuid == permissions::ADMIN_GROUP.simple().to_string() }) {
             return Outcome::Success(Admin(u));
         }
         Outcome::Failure((Status::Forbidden, ()))

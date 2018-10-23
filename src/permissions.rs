@@ -1,6 +1,10 @@
 use diesel;
 use uuid::Uuid;
-use models::NewGroup;
+use db::groups::NewGroup;
+
+lazy_static! {
+    pub static ref ADMIN_GROUP: Uuid = Uuid::parse_str("b249560f-c7c2-463a-872a-79c9841d0139").unwrap();
+}
 
 fn all_groups() -> Vec<NewGroup> {
     vec![admin_group()]
@@ -27,7 +31,7 @@ pub fn admin_group() -> NewGroup {
     NewGroup {
         name: "admins".to_string(),
         // arbitrary random value
-        uuid: Uuid::parse_str("b249560f-c7c2-463a-872a-79c9841d0139").unwrap(),
+        uuid: Some(*ADMIN_GROUP),
         public: true,
         description: r#"Wobscale Admins
     This group contains administrators who have far-reaching permissions.

@@ -35,7 +35,6 @@ mod types;
 mod request_id;
 mod hydra;
 mod oauth;
-mod models;
 mod permissions;
 mod errors;
 mod db;

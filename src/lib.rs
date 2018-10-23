@@ -38,7 +38,6 @@ extern crate log;
 pub mod provider;
 mod request_id;
 mod hydra;
-mod models;
 mod permissions;
 mod policy;
 mod errors;
