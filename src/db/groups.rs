@@ -1,5 +1,6 @@
 use db::users::User;
 use diesel;
+use diesel::PgConnection;
 use diesel::prelude::*;
 use std::time::SystemTime;
 use db::schema::{groups, users, users_groups};
@@ -17,6 +18,10 @@ pub struct Group {
 }
 
 impl Group {
+    pub fn list_all(conn: &PgConnection) -> Result<Vec<Self>, diesel::result::Error> {
+        groups::table.load(conn)
+    }
+
     pub fn from_uuid(conn: &diesel::PgConnection, uuid_: Uuid) -> Result<Self, diesel::result::Error> {
         groups::table.filter(groups::uuid.eq(uuid_)).first(&*conn)
     }

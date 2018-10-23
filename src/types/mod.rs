@@ -155,6 +155,18 @@ pub struct GroupResp {
     pub public: bool,
 }
 
+impl GroupResp {
+    pub fn list_all(conn: &PgConnection) -> Result<Vec<Self>, Error> {
+        db::groups::Group::list_all(conn)
+            .map(|gs| {
+                gs.into_iter().map(|g| (&g).into()).collect()
+            })
+            .map_err(|e| {
+                Error::server_error(format!("error listing groups: {:?}", e))
+            })
+    }
+}
+
 impl<'a> From<&'a db::groups::Group> for GroupResp {
     fn from(g: &'a db::groups::Group) -> Self {
         GroupResp {

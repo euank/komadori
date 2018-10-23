@@ -6,7 +6,7 @@ use rocket;
 use policy;
 
 pub fn routes() -> Vec<rocket::Route> {
-    routes![create_group]
+    routes![create_group, list_groups]
 }
 
 #[post("/group/create", format = "application/json", data = "<req>")]
@@ -23,4 +23,18 @@ fn create_group(
     }
 
     req.create(&conn).into()
+}
+
+#[get("/group/listAll", format = "application/json")]
+fn list_groups(
+    conn: db::Conn,
+    user: CookieUser,
+) -> JsonResult<Vec<GroupResp>> {
+    // TODO: this should not require admin, but rather there should be a policy check of some kind.
+    // Punting for now.
+    if !policy::is_allowed(user.0, policy::Action::ListGroups(())) {
+        return Err(Error::client_error("permission denied".to_string())).into();
+    }
+
+    GroupResp::list_all(&conn).into()
 }

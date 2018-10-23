@@ -4,6 +4,7 @@ use permissions;
 
 pub enum Action<'a> {
     CreateGroup(&'a CreateGroupRequest),
+    ListGroups(()),
 }
 
 fn user_in_group(user: User, group: Uuid) -> bool {
@@ -18,6 +19,9 @@ fn user_in_group(user: User, group: Uuid) -> bool {
 pub fn is_allowed(user: User, action: Action) -> bool {
     match action {
         Action::CreateGroup(_) => {
+            return user_in_group(user, *permissions::ADMIN_GROUP)
+        }
+        Action::ListGroups(_) => {
             return user_in_group(user, *permissions::ADMIN_GROUP)
         }
     }
