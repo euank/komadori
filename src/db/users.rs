@@ -28,7 +28,7 @@ pub struct NewLocalAccount {
 }
 
 
-#[derive(Debug, Clone, Queryable, Identifiable)]
+#[derive(Debug, Clone, Queryable, Identifiable, PartialEq)]
 pub struct User {
     id: i32,
     pub uuid: Uuid,
@@ -182,18 +182,18 @@ impl User {
             })
     }
 
-    pub fn add_group(&self, conn: db::Conn, group: Uuid) -> Result<(), diesel::result::Error> {
+    pub fn add_group(&self, conn: &db::PgConnection, group: Uuid) -> Result<(), diesel::result::Error> {
         let group_id = groups::table
             .select(groups::id)
             .filter(groups::uuid.eq(group))
-            .first::<i32>(&*conn)?;
+            .first::<i32>(conn)?;
 
         diesel::insert_into(users_groups::table)
             .values((
                 users_groups::user_id.eq(self.id),
                 users_groups::group_id.eq(group_id),
             ))
-            .execute(&*conn)?;
+            .execute(conn)?;
         Ok(())
     }
 

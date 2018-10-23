@@ -40,12 +40,14 @@ mod request_id;
 mod hydra;
 mod models;
 mod permissions;
+mod policy;
 mod errors;
 pub mod db;
 pub mod oauth;
 mod admin_routes;
 mod user_routes;
 mod oauth_routes;
+mod group_routes;
 pub mod types;
 
 use provider::ProviderSet;
@@ -125,6 +127,7 @@ pub fn rocket(config: Config) -> rocket::Rocket {
         .manage(providers)
         .mount("/", routes![healthz])
         .mount("/", user_routes::routes())
+        .mount("/", group_routes::routes())
         .mount("/", admin_routes::routes())
         .mount("/", oauth_routes::routes())
         .mount("/", provider::routes())

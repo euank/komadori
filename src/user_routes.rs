@@ -1,14 +1,10 @@
 use db;
-use types::{User, CookieUser, CreateUserRequest, UserResp, AuthMetadata, GithubAuthMetadata,AuthUserResp};
-use provider::github::get_github_user;
-use oauth;
-use diesel;
+use types::{User, CookieUser, CreateUserRequest, AuthUserResp};
 use rocket::State;
-use diesel::result::Error as DieselErr;
 use rocket;
 use rocket_contrib::json::Json;
 use rocket::http::{Cookie, Cookies};
-use errors::{JsonResult, Error};
+use errors::JsonResult;
 use provider::{ProviderSet, ProviderAuthRequest};
 
 pub fn routes() -> Vec<rocket::Route> {
@@ -16,9 +12,8 @@ pub fn routes() -> Vec<rocket::Route> {
 }
 
 #[get("/user", format = "application/json")]
-pub fn get_user(user: CookieUser, conn: db::Conn) -> JsonResult<UserResp> {
-    UserResp::new(user.0, &conn)
-        .into()
+pub fn get_user(user: CookieUser) -> JsonResult<User> {
+    Ok(user.0).into()
 }
 
 
@@ -27,84 +22,19 @@ pub fn create_user(
     conn: db::Conn,
     req: Json<CreateUserRequest>,
     mut cookies: Cookies,
-) -> JsonResult<UserResp> {
-    if req.username.len() == 0 {
-        return Err(Error::client_error("Name cannot be blank".to_string())).into();
-    }
-    if req.email.len() == 0 {
-        return Err(Error::client_error(
-            "Email cannot be blank".to_string(),
-        )).into();
-    }
-
-    let mut auth_meta = AuthMetadata{
-        github: None,
-    };
-
-    let create_res = match req.partial_user.provider {
-        oauth::Provider::Github => {
-            let gh = match get_github_user(&req.partial_user.access_token) {
-                Ok(u) => u,
-                Err(e) => return Err(e).into(),
-            };
-            auth_meta.github = Some(Ok(GithubAuthMetadata{
-                username: gh.login,
-            }));
-            db::users::NewUser{
-                username: &req.username,
-                email: &req.email,
-            }.insert_github(&*conn, db::users::NewGithubAccount{
-                id: req.partial_user.provider_id,
-                access_token: &req.partial_user.access_token,
-            })
-        }
-        oauth::Provider::Local => db::users::NewUser{
-            username: &req.username,
-            email: &req.email,
-        }.insert_local(&*conn, db::users::NewLocalAccount{
-            id: req.partial_user.provider_id,
-        })
-    };
-
-    match create_res {
-        Err(e) => {
-            match e {
-                DieselErr::DatabaseError(diesel::result::DatabaseErrorKind::UniqueViolation, e) => {
-                    match e.constraint_name() {
-                        Some("users_username_key") => {
-                            Err(Error::client_error(format!("Could not create account; username '{}' already exists.", req.username)))
-                        }
-                        Some("github_accounts_pkey") => {
-                            Err(Error::client_error(format!("Could not create account; Github account with id {} already associated with a user.", req.partial_user.provider_id)))
-                        }
-                        _ => {
-                            error!("uniqueness violation case missed: {:?}: {:?}, {:?}", e, e.table_name(), e.column_name());
-                            Err(Error::client_error("An unknown uniqueness violation happened, sorry :(".to_string()))
-                        }
-                    }
-                },
-                _ => {
-                    error!("error creating user account: {}", e);
-                    Err(Error::server_error("Could not create account: please contact the administrator if this persists".to_string()))
-                }
-            }
-        }
-        Ok(newuser) => {
+) -> JsonResult<User> {
+    let res = match req.create(&*conn) {
+        Ok(u) => {
             cookies.add_private(Cookie::new(
                 "user_uuid".to_owned(),
-                newuser.uuid.simple().to_string(),
+                u.uuid.clone(),
             ));
             cookies.remove_private(Cookie::named("oauth_token"));
-            Ok(UserResp{
-                username: newuser.username,
-                email: newuser.email,
-                role: None,
-                uuid: newuser.uuid.simple().to_string(),
-                groups: vec![],
-                auth_metadata: auth_meta,
-            })
+            Ok(u)
         }
-    }.into()
+        x => x
+    };
+    res.into()
 }
 
 #[derive(Serialize)]
@@ -128,7 +58,7 @@ pub fn auth_user(mut cookies: Cookies, conn: db::Conn, providers: State<Provider
         Ok(u) => {
             cookies.add_private(Cookie::new(
                 "user_uuid".to_owned(),
-                u.uuid.simple().to_string(),
+                u.uuid.clone(),
             ));
             u
         }
@@ -138,8 +68,5 @@ pub fn auth_user(mut cookies: Cookies, conn: db::Conn, providers: State<Provider
             return Ok(AuthUserResp::PartialUser(pu)).into();
         }
     };
-    match UserResp::new(user, &conn) {
-        Err(e) => Err(e),
-        Ok(u) => Ok(AuthUserResp::UserResp(u)),
-    }.into()
+    Ok(AuthUserResp::UserResp(user)).into()
 }

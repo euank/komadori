@@ -10,7 +10,7 @@ use rocket_contrib::json::Json;
 
 use errors::{Error, JsonResult};
 use permissions;
-use types::UserResp;
+use types::User;
 use types::CookieUser;
 
 lazy_static! {
@@ -52,16 +52,16 @@ pub fn bootstrap_admin(
         return Err(Error::client_error("invalid bootstrap token".to_string())).into();
     }
 
-    user.add_group(conn, permissions::admin_group().uuid)
+    user.add_group(&conn, permissions::admin_group().uuid)
         .map_err(|e| {
-            Error::server_error(format!("error adding to group: {}", e))
+            Error::server_error(format!("error adding to group: {:?}", e))
         })
         .map(|_| ()).into()
 }
 
 #[derive(Serialize)]
 pub struct ListUsersResp {
-    users: Vec<UserResp>
+    users: Vec<User>
 }
 
 #[get("/admin/users", format = "application/json")]
@@ -72,7 +72,7 @@ pub fn list_users(
     match db::users::User::list(&conn) {
         Ok(us) => {
             let resp = us.into_iter().map(|u| {
-                UserResp::new(u, &conn)
+                User::new(u, &conn)
             }).collect::<Result<Vec<_>, _>>();
 
             match resp {
@@ -101,27 +101,9 @@ impl<'a, 'r> FromRequest<'a, 'r> for Admin {
                 return Outcome::Failure(f);
             }
         };
-        let db = request.guard::<rocket::State<db::Pool>>()?;
-        let db = match db.get() {
-            Ok(db) => db,
-            Err(e) => {
-                error!("error getting db: {}", e);
-               return Outcome::Failure((Status::InternalServerError, ()));
-            }
-        };
 
-        let groups = match u.0.groups(&*db) {
-            Err(e) => {
-                error!("error getting groups: {:?}", e);
-                return Outcome::Failure((Status::InternalServerError, ()));
-            }
-            Ok(g) => g,
-        };
-
-        for group in groups {
-            if group.uuid == permissions::admin_group().uuid {
-                return Outcome::Success(Admin(u));
-            }
+        if u.0.groups.iter().any(|g| { g.uuid == permissions::admin_group().uuid.simple().to_string() }) {
+            return Outcome::Success(Admin(u));
         }
         Outcome::Failure((Status::Forbidden, ()))
     }

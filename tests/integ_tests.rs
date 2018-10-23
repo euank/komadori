@@ -1,5 +1,8 @@
 extern crate rocket;
 extern crate komadori;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
 extern crate serde_json;
 
 use std::env;
@@ -35,6 +38,7 @@ fn rocket() -> rocket::Rocket {
     })
 }
 
+
 #[test]
 fn it_lets_users_login() {
     let rkt = rocket();
@@ -60,7 +64,7 @@ fn it_lets_users_login() {
 
     let mut resp = req.dispatch();
     assert!(resp.status() == rocket::http::Status::Ok);
-    let resp: types::UserResp = serde_json::from_str(&resp.body_string().unwrap()).unwrap();
+    let resp: types::User = serde_json::from_str(&resp.body_string().unwrap()).unwrap();
     assert_eq!(resp.username, "test_account");
     assert_eq!(resp.email, "test@email.com");
 
@@ -101,7 +105,7 @@ fn it_lets_users_login() {
         req.dispatch()
     };
     assert_eq!(user_resp.status(), rocket::http::Status::Ok);
-    let user_resp_data: types::UserResp = serde_json::from_str(&user_resp.body_string().unwrap()).unwrap();
+    let user_resp_data: types::User = serde_json::from_str(&user_resp.body_string().unwrap()).unwrap();
     assert_eq!(auth_resp_user, user_resp_data);
 }
 

@@ -25,6 +25,10 @@ impl Error {
     pub fn server_error(message: String) -> Self {
         Self::new(Status::InternalServerError, message)
     }
+
+    pub fn status(&self) -> Status {
+        self.status
+    }
 }
 
 impl<'a> rocket::response::Responder<'a> for Error {

@@ -72,11 +72,11 @@ pub fn accept_consent(
     // note: email is a required 'extra' attribute for some oauth proxies; set it to the uuid to
     // allow this oidc to better interoperate with those even though technically this isn't right.
     let mut extra_claims = HashMap::new();
-    extra_claims.insert("email".to_owned(), serde_json::Value::String(user.uuid.simple().to_string()));
+    extra_claims.insert("email".to_owned(), serde_json::Value::String(user.uuid.clone()));
 
     let accept = hydra_client::models::ConsentRequestAcceptance::new()
         .with_id_token_extra(extra_claims)
-        .with_subject(user.uuid.simple().to_string())
+        .with_subject(user.uuid)
         .with_grant_scopes(req.scopes.clone());
     let resp = client.o_auth2_api()
         .accept_o_auth2_consent_request(&req.id, accept)

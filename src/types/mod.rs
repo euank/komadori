@@ -1,7 +1,10 @@
 use db;
 use provider::github::get_github_user;
+use diesel::result::Error as DieselErr;
 use github_rs::client::Executor;
 use github_rs::client::Github;
+use diesel;
+use diesel::pg::PgConnection;
 use oauth;
 use errors::Error;
 use hydra;
@@ -24,8 +27,11 @@ pub struct PartialUser {
     pub access_token: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct UserResp {
+// User is a komadori user.
+// Its serialization is returned by the api, so it should be considered the public
+// representation of a user and not contain internal details like database id.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct User {
     pub uuid: String,
     pub username: String,
     pub role: Option<String>,
@@ -34,11 +40,25 @@ pub struct UserResp {
     pub groups: Vec<GroupResp>,
 
     pub auth_metadata: AuthMetadata,
+
+    #[serde(skip)]
+    _dbuser: Option<DBUser>,
 }
 
-impl UserResp {
-    pub fn new(user: DBUser, conn: &db::Conn) -> Result<UserResp, Error> {
+// Custom PartialEq to avoid comparing internal fields that really don't matter
+impl PartialEq for User {
+    fn eq(&self, rhs: &Self) -> bool {
+        return self.uuid == rhs.uuid &&
+            self.username == rhs.username &&
+            self.role == rhs.role &&
+            self.email == rhs.email &&
+            self.groups == rhs.groups &&
+            self.auth_metadata == rhs.auth_metadata
+    }
+}
 
+impl User {
+    pub fn new(user: DBUser, conn: &PgConnection) -> Result<User, Error> {
         let groups = user.groups(conn)
             .map_err(|e| {
                 Error::server_error(format!("error getting groups: {}", e))
@@ -58,31 +78,75 @@ impl UserResp {
             .map_err(|e| format!("{:?}", e))
         };
 
-        Ok(UserResp {
+        Ok(User {
             uuid: user.uuid.simple().to_string(),
-            username: user.username,
-            role: user.role,
-            email: user.email,
+            username: user.username.clone(),
+            role: user.role.clone(),
+            email: user.email.clone(),
             groups: groups.iter().map(|g| g.into()).collect(),
             auth_metadata: AuthMetadata{
                 github: Some(github_account),
             },
+            _dbuser: Some(user),
+        })
+    }
+
+    pub fn from_uuid(uuid: Uuid, conn: &PgConnection) -> Result<Self, Error> {
+        let dbuser = match DBUser::from_uuid(&conn, uuid) {
+            Ok(u) => u,
+            Err(db::users::GetUserError::NoSuchUser) => {
+                return Err(Error::client_error(format!("No such user '{}'", uuid)));
+            },
+            Err(e) => {
+                error!("error using uuid to get user: {:?}", e);
+                return Err(Error::server_error(format!("Error getting user '{}'", uuid)));
+            }
+        };
+
+        User::new(dbuser, &conn)
+    }
+
+    pub fn from_oauth_provider(conn: &PgConnection, provider: &oauth::Provider, oauth_id: &i32) -> Result<Self, Error> {
+        let dbuser = match DBUser::from_oauth_provider(&conn, &provider, &oauth_id) {
+            Ok(u) => u,
+            Err(db::users::GetUserError::NoSuchUser) => {
+                return Err(Error::client_error(format!("No such user '{}' for '{:?}'", oauth_id, provider)));
+            },
+            Err(e) => {
+                error!("error using oauth provider to get user: {:?}", e);
+                return Err(Error::server_error(format!("Erro getting user '{}' for '{:?}'", oauth_id, provider)));
+            }
+        };
+
+        User::new(dbuser, &conn)
+    }
+
+    pub fn add_group(&self, conn: &PgConnection, group: Uuid) -> Result<(), Error> {
+        let dbres = match self._dbuser {
+            Some(ref u) => u.add_group(&conn, group),
+            None => {
+                return Err(Error::server_error("cannot add group: user not constructed with db reference".to_string()));
+            }
+        };
+
+        dbres.map_err(|e| {
+            Error::server_error(format!("error adding user to group: {:?}", e))
         })
     }
 }
 
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct AuthMetadata {
     pub github: Option<Result<GithubAuthMetadata, String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct GithubAuthMetadata {
     pub username: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct GroupResp {
     pub uuid: String,
     pub name: String,
@@ -105,7 +169,7 @@ impl<'a> From<&'a db::groups::Group> for GroupResp {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 pub enum AuthUserResp {
-    UserResp(UserResp),
+    UserResp(User),
     PartialUser(PartialUser),
 }
 
@@ -169,9 +233,8 @@ impl<'a, 'r> FromRequest<'a, 'r> for PartialUser {
 
 
 
-pub type User = DBUser;
-
 pub struct CookieUser(pub User);
+
 impl<'a, 'r> FromRequest<'a, 'r> for CookieUser {
     type Error = ();
 
@@ -210,36 +273,23 @@ impl<'a, 'r> FromRequest<'a, 'r> for CookieUser {
         let uuid_ = match uuid_ {
             Some(u) => u,
             None => {
-                // If we have a github oauth login thing going, let's try that
-                debug!("attempting to get uuid from partial-user");
-                match PartialUser::from_request(request) {
-                    Outcome::Success(pu) => {
-                        match DBUser::from_oauth_provider(&*db, &pu.provider, &pu.provider_id) {
-                            Ok(u) => {
-                                u.uuid
-                            }
-                            Err(e) => {
-                                error!("could not create user from partial user: {:?}", e);
-                                return Outcome::Failure((Status::InternalServerError, ()));
-                            }
-                        }
-                    }
-                    Outcome::Forward(()) => return Outcome::Forward(()),
-                    Outcome::Failure(e) => {
-                        return Outcome::Failure(e);
-                    }
-                }
+                return Outcome::Forward(());
             }
         };
-        match User::from_uuid(&*db, uuid_) {
+        let dbuser = match DBUser::from_uuid(&*db, uuid_) {
             Err(db::users::GetUserError::NoSuchUser) => {
-                Outcome::Failure((Status::NotFound, ()))
+                return Outcome::Failure((Status::NotFound, ()));
             },
             Err(e) => {
                 error!("error using uuid to get user: {:?}", e);
-                Outcome::Failure((Status::InternalServerError, ()))
+                return Outcome::Failure((Status::InternalServerError, ()));
             }
+            Ok(u) => u,
+        };
+
+        match User::new(dbuser, &db) {
             Ok(u) => Outcome::Success(CookieUser(u)),
+            Err(_) => Outcome::Failure((Status::InternalServerError, ()))
         }
     }
 }
@@ -319,13 +369,9 @@ impl<'a, 'r> FromRequest<'a, 'r> for OauthUser {
                     Ok(u) => u,
                 };
 
-                match User::from_uuid(&*db, uuid) {
-                    Err(db::users::GetUserError::NoSuchUser) => {
-                        Err(Outcome::Failure((Status::NotFound, ())))
-                    },
+                match User::from_uuid(uuid, &db) {
                     Err(e) => {
-                        error!("error using uuid to get user: {:?}", e);
-                        Err(Outcome::Failure((Status::InternalServerError, ())))
+                        Err(Outcome::Failure((e.status(), ())))
                     }
                     Ok(u) => Ok(Outcome::Success(OauthUser{
                         user: u,
@@ -350,3 +396,80 @@ pub struct CreateUserRequest {
     pub email: String,
 }
 
+impl CreateUserRequest {
+    pub fn create(&self, conn: &PgConnection) -> Result<User, Error> {
+        if self.username.len() == 0 {
+            return Err(Error::client_error("Name cannot be blank".to_string()));
+        }
+        if self.email.len() == 0 {
+            return Err(Error::client_error(
+                "Email cannot be blank".to_string(),
+            ));
+        }
+
+        let mut auth_meta = AuthMetadata{
+            github: None,
+        };
+
+        let create_res = match self.partial_user.provider {
+            oauth::Provider::Github => {
+                let gh = match get_github_user(&self.partial_user.access_token) {
+                    Ok(u) => u,
+                    Err(e) => return Err(e).into(),
+                };
+                auth_meta.github = Some(Ok(GithubAuthMetadata{
+                    username: gh.login,
+                }));
+                db::users::NewUser{
+                    username: &self.username,
+                    email: &self.email,
+                }.insert_github(&*conn, db::users::NewGithubAccount{
+                    id: self.partial_user.provider_id,
+                    access_token: &self.partial_user.access_token,
+                })
+            }
+            oauth::Provider::Local => db::users::NewUser{
+                username: &self.username,
+                email: &self.email,
+            }.insert_local(&*conn, db::users::NewLocalAccount{
+                id: self.partial_user.provider_id,
+            })
+        };
+
+        match create_res {
+            Err(e) => {
+                match e {
+                    DieselErr::DatabaseError(diesel::result::DatabaseErrorKind::UniqueViolation, e) => {
+                        match e.constraint_name() {
+                            Some("users_username_key") => {
+                                Err(Error::client_error(format!("Could not create account; username '{}' already exists.", self.username)))
+                            }
+                            Some("github_accounts_pkey") => {
+                                Err(Error::client_error(format!("Could not create account; Github account with id {} already associated with a user.", self.partial_user.provider_id)))
+                            }
+                            _ => {
+                                error!("uniqueness violation case missed: {:?}: {:?}, {:?}", e, e.table_name(), e.column_name());
+                                Err(Error::client_error("An unknown uniqueness violation happened, sorry :(".to_string()))
+                            }
+                        }
+                    },
+                    _ => {
+                        error!("error creating user account: {}", e);
+                        Err(Error::server_error("Could not create account: please contact the administrator if this persists".to_string()))
+                    }
+                }
+            }
+            Ok(newuser) => {
+                User::new(newuser, conn)
+            }
+        }
+    }
+}
+
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateGroupRequest {
+    pub name: String,
+    pub public: bool,
+    pub description: String,
+}
