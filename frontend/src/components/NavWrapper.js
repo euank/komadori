@@ -6,6 +6,7 @@ import Security from '../containers/Security';
 import userUtil from '../util/user';
 import UserDashboard from '../containers/UserDashboardContainer';
 import AdminManageUsers from '../containers/AdminManageUsers';
+import AdminManageGroups from '../containers/AdminManageGroups';
 
 const NavWrapper = ({ user }) => (
   <div className="wrapper">
@@ -21,7 +22,8 @@ const NavWrapper = ({ user }) => (
               <div className="admin-nav-section">
                 <br />
                 <span>Admin Sections</span> <br />
-                <Link to="/admin/users">Manage Users</Link>
+                <Link to="/admin/users">Manage Users</Link> <br />
+                <Link to="/admin/groups">Manage Groups</Link>
               </div>
             : null
           }
@@ -30,6 +32,7 @@ const NavWrapper = ({ user }) => (
       <div className="main">
         <Switch>
           <Route path="/admin/users" component={AdminManageUsers} />
+          <Route path="/admin/groups" component={AdminManageGroups} />
           <Route path="/user/security" component={Security} />
           <Route path="/" component={UserDashboard} />
         </Switch>

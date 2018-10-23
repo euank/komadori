@@ -39,6 +39,20 @@ class AdminAPI {
       return resp.json();
     }).then(resp => resp.users);
   }
+
+  static listGroups() {
+    return fetch(`${config.api}/group/listAll`, {
+      method: 'GET',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      mode: 'cors',
+    }).then((resp) => {
+      if (!resp.ok) {
+        throw new Error(`admin listgroups error: ${resp.status}`);
+      }
+      return resp.json();
+    })
+  }
 }
 
 export default AdminAPI;

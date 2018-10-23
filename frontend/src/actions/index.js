@@ -209,3 +209,17 @@ export function doAdminListUsers() {
       });
   };
 }
+
+export const ADMIN_GROUP_LIST = 'ADMIN_GROUP_LIST';
+export function doAdminListGroups() {
+  return (dispatch) => {
+    AdminAPI.listGroups()
+      .then((groups) => {
+        dispatch({ type: ADMIN_GROUP_LIST, data: groups });
+      })
+      .catch((e) => {
+        // TODO
+        console.error(e);
+      });
+  };
+}

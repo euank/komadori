@@ -16,7 +16,7 @@ class AdminManageUsers extends Component {
         <span>TODO: provide link for each user to admin-manage page</span>
         <ul>
           {
-            this.props.users.map(u => <li>{u.username}</li>)
+            this.props.users.map(u => <li key={u.uuid}>{u.username}</li>)
           }
         </ul>
       </div>
@@ -24,7 +24,7 @@ class AdminManageUsers extends Component {
   }
 }
 AdminManageUsers.propTypes = {
-  users: PropTypes.object,
+  users: PropTypes.array,
   adminListUsers: PropTypes.func.isRequired,
 };
 AdminManageUsers.defaultProps = {

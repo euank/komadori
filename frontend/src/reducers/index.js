@@ -34,6 +34,10 @@ function handleAdminState(state = {}, action) {
       return Object.assign({}, state, {
         users: action.data,
       });
+    case a.ADMIN_GROUP_LIST:
+      return Object.assign({}, state, {
+        groups: action.data,
+      });
     default:
       return state;
   }
