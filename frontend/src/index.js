@@ -4,6 +4,7 @@ import { Provider } from 'react-redux';
 import { BrowserRouter as Router } from 'react-router-dom';
 import thunkMiddleware from 'redux-thunk';
 import { createStore, applyMiddleware } from 'redux';
+import 'milligram/dist/milligram.min.css';
 import './index.css';
 import './site.css';
 import App from './containers/App';
