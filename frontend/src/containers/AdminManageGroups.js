@@ -1,5 +1,5 @@
 import { connect } from 'react-redux';
-import { doAdminListGroups } from '../actions';
+import { doAdminListGroups, doAdminCreateGroup } from '../actions';
 import AdminManageGroupsComponent from '../components/AdminManageGroups';
 
 const mapStateToProps = state => ({
@@ -9,6 +9,9 @@ const mapStateToProps = state => ({
 const mapDispatchToProps = dispatch => ({
   adminListGroups: () => {
     dispatch(doAdminListGroups());
+  },
+  adminCreateGroup: (group) => {
+    dispatch(doAdminCreateGroup(group));
   },
 });
 

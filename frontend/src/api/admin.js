@@ -51,7 +51,22 @@ class AdminAPI {
         throw new Error(`admin listgroups error: ${resp.status}`);
       }
       return resp.json();
-    })
+    });
+  }
+
+  static createGroup(group) {
+    return fetch(`${config.api}/group/create`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      mode: 'cors',
+      body: JSON.stringify(group),
+    }).then((resp) => {
+      if (!resp.ok) {
+        throw new Error(`admin creategroup error: ${resp.status}`);
+      }
+      return resp.json();
+    });
   }
 }
 

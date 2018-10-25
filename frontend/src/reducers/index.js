@@ -38,6 +38,10 @@ function handleAdminState(state = {}, action) {
       return Object.assign({}, state, {
         groups: action.data,
       });
+    case a.ADMIN_GROUP_CREATED:
+      return Object.assign({}, state, {
+        groups: state.groups.concat([action.data]),
+      });
     default:
       return state;
   }

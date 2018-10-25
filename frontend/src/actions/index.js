@@ -223,3 +223,17 @@ export function doAdminListGroups() {
       });
   };
 }
+
+export const ADMIN_GROUP_CREATED = 'ADMIN_GROUP_CREATED';
+export function doAdminCreateGroup(group) {
+  return (dispatch) => {
+    AdminAPI.createGroup(group)
+      .then((g) => {
+        dispatch({ type: ADMIN_GROUP_CREATED, data: g });
+      })
+      .catch((e) => {
+        // TODO
+        console.error(e);
+      });
+  };
+}
