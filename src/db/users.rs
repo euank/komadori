@@ -39,6 +39,13 @@ pub struct User {
     updated_at: SystemTime,
 }
 
+#[derive(Debug, Clone, AsChangeset)]
+#[table_name="users"]
+pub struct UpdateUser {
+    pub username: Option<String>,
+    pub email: Option<String>,
+}
+
 #[derive(Debug, Clone, Queryable, Identifiable)]
 pub struct GithubAccount {
     pub id: i32,
@@ -192,6 +199,57 @@ impl User {
             .values((
                 users_groups::user_id.eq(self.id),
                 users_groups::group_id.eq(group_id),
+            ))
+            .execute(conn)?;
+        Ok(())
+    }
+
+    pub fn add_groups(&self, conn: &db::PgConnection, groups: &Vec<Uuid>) -> Result<(), diesel::result::Error> {
+        if groups.len() == 0 {
+            return Ok(());
+        }
+        use diesel::sql_types::Bool;
+        let mut eqs = groups.into_iter().map(|g| groups::uuid.eq(g));
+        let head: Box<BoxableExpression<_, _, SqlType = Bool>> = Box::new(eqs.next().unwrap()); // safe because we asserted len > 0 above
+        let or_expr = eqs
+            .fold(head, |sum: Box<BoxableExpression<_, _, SqlType = Bool>>, expr| {
+                Box::new(sum.or(expr))
+            });
+
+        let group_ids = groups::table
+            .select((groups::id, diesel::dsl::sql(&format!("{} as user_id", self.id))))
+            .filter(or_expr);
+
+        diesel::insert_into(users_groups::table)
+            .values(group_ids)
+            .into_columns((
+                users_groups::group_id,
+                users_groups::user_id,
+            ))
+            .execute(conn)?;
+        Ok(())
+    }
+
+    pub fn delete_groups(&self, conn: &db::PgConnection, groups: &Vec<Uuid>) -> Result<(), diesel::result::Error> {
+        if groups.len() == 0 {
+            return Ok(());
+        }
+        use diesel::sql_types::Bool;
+        let mut eqs = groups.into_iter().map(|g| groups::uuid.eq(g));
+        let head: Box<BoxableExpression<_, _, SqlType = Bool>> = Box::new(eqs.next().unwrap()); // safe because we asserted len > 0 above
+        let or_expr = eqs
+            .fold(head, |sum: Box<BoxableExpression<_, _, SqlType = Bool>>, expr| {
+                Box::new(sum.or(expr))
+            });
+
+        let group_ids = groups::table
+            .select(groups::id)
+            .filter(or_expr);
+
+        diesel::delete(users_groups::table.filter(
+                users_groups::user_id.eq(self.id).and(
+                    users_groups::group_id.eq_any(group_ids)
+                )
             ))
             .execute(conn)?;
         Ok(())

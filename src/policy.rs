@@ -1,14 +1,15 @@
-use types::{User, CreateGroupRequest};
+use types::{User, CreateGroupRequest, UpdateUserRequest};
 use uuid::Uuid;
 use permissions;
 
 pub enum Action<'a> {
     CreateGroup(&'a CreateGroupRequest),
     ListGroups(()),
+    UpdateUser(&'a UpdateUserRequest),
 }
 
-fn user_in_group(user: User, group: Uuid) -> bool {
-    for g in user.groups {
+fn user_in_group(user: &User, group: Uuid) -> bool {
+    for g in &user.groups {
         if g.uuid == group.simple().to_string() {
             return true
         }
@@ -19,10 +20,27 @@ fn user_in_group(user: User, group: Uuid) -> bool {
 pub fn is_allowed(user: User, action: Action) -> bool {
     match action {
         Action::CreateGroup(_) => {
-            return user_in_group(user, *permissions::ADMIN_GROUP)
+            return user_in_group(&user, *permissions::ADMIN_GROUP)
         }
         Action::ListGroups(_) => {
-            return user_in_group(user, *permissions::ADMIN_GROUP)
+            return user_in_group(&user, *permissions::ADMIN_GROUP)
+        }
+        Action::UpdateUser(req) => {
+            return user_update_allowed(user, req)
         }
     }
+}
+
+fn user_update_allowed(user: User, req: &UpdateUserRequest) -> bool {
+    if user_in_group(&user, *permissions::ADMIN_GROUP) {
+        // admins can make any update to any user
+        return true;
+    }
+
+    // A user may only update themselves
+    if user.uuid != req.user_uuid {
+        return false;
+    }
+
+    return req.changes_only_user_controlled_fields();
 }

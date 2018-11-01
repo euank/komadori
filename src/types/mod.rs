@@ -479,6 +479,54 @@ impl CreateUserRequest {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateUserRequest {
+    pub user_uuid: String,
+
+    pub username:  Option<String>,
+    pub email:     Option<String>,
+    pub add_groups: Option<Vec<Uuid>>,
+    pub remove_groups: Option<Vec<Uuid>>,
+}
+
+impl UpdateUserRequest {
+    // changes_only_user_controlled_fields should return whether this update request only makes
+    // changes users are allowed to make, such as changing their username and email.
+    // For now, users are not allowed to change their own groups, only admins can do that.
+    // This function is used for policy checking.
+    pub fn changes_only_user_controlled_fields(&self) -> bool {
+        return self.add_groups.is_none() && self.remove_groups.is_none();
+    }
+
+    pub fn update(&self, conn: &PgConnection) -> Result<User, Error> {
+        use diesel::prelude::*;
+        use db::schema::users;
+
+        let user_uuid = Uuid::parse_str(&self.user_uuid)
+            .map_err(|e| Error::client_error(format!("invalid uuid: {}", e)))?;
+        let user_target = users::table.filter(users::uuid.eq(user_uuid));
+
+        let dbuser: DBUser = diesel::update(user_target).set(&db::users::UpdateUser{
+            username: self.username.clone(),
+            email: self.email.clone(),
+        }).get_result(conn)
+        .map_err(|e| Error::server_error(format!("error updating user in db: {}", e)))?;
+
+        // and now update groups if needed
+        if let Some(ref new_groups) = self.add_groups {
+            dbuser.add_groups(&conn, new_groups)
+                .map_err(|e| Error::server_error(format!("error adding groups: {}", e)))?;
+        }
+
+        if let Some(ref rm_groups) = self.remove_groups {
+            dbuser.delete_groups(&conn, rm_groups)
+                .map_err(|e| Error::server_error(format!("error removing groups: {}", e)))?;
+        }
+
+        User::new(dbuser, &conn)
+    }
+}
+
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateGroupRequest {

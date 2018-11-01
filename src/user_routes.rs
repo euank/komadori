@@ -1,14 +1,16 @@
 use db;
-use types::{User, CookieUser, CreateUserRequest, AuthUserResp};
+use types::{User, CookieUser, CreateUserRequest, UpdateUserRequest, AuthUserResp};
 use rocket::State;
 use rocket;
+use policy;
 use rocket_contrib::json::Json;
 use rocket::http::{Cookie, Cookies};
+use errors::Error;
 use errors::JsonResult;
 use provider::{ProviderSet, ProviderAuthRequest};
 
 pub fn routes() -> Vec<rocket::Route> {
-    routes![auth_user, create_user, logout_user, get_user]
+    routes![auth_user, create_user, logout_user, get_user, update_user]
 }
 
 #[get("/user", format = "application/json")]
@@ -35,6 +37,19 @@ pub fn create_user(
         x => x
     };
     res.into()
+}
+
+#[post("/user/update", format = "application/json", data = "<req>")]
+pub fn update_user(
+    conn: db::Conn,
+    user: CookieUser,
+    req: Json<UpdateUserRequest>,
+) -> JsonResult<User> {
+    if !policy::is_allowed(user.0, policy::Action::UpdateUser(&req)) {
+        return Err(Error::client_error("permission denied".to_string())).into();
+    }
+
+    req.update(&*conn).into()
 }
 
 #[derive(Serialize)]
