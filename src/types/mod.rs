@@ -1,8 +1,6 @@
 use db;
 use provider::github::get_github_user;
 use diesel::result::Error as DieselErr;
-use github_rs::client::Executor;
-use github_rs::client::Github;
 use diesel;
 use diesel::pg::PgConnection;
 use oauth;
@@ -185,66 +183,6 @@ pub enum AuthUserResp {
     UserResp(User),
     PartialUser(PartialUser),
 }
-
-impl<'a, 'r> FromRequest<'a, 'r> for PartialUser {
-    type Error = ();
-
-    fn from_request(request: &'a Request<'r>) -> rocket::request::Outcome<Self, ()> {
-        let token = match oauth::SerializableToken::from_request(request) {
-            Outcome::Success(token) => token,
-            Outcome::Forward(()) => {
-                return Outcome::Forward(());
-            }
-            Outcome::Failure(e) => {
-                return Outcome::Failure(e);
-            }
-        };
-        // Let's make sure the token is valid..
-        let (uid, name) = match token.provider {
-            oauth::Provider::Github => {
-                let client = match Github::new(&token.token.access_token) {
-                    Ok(c) => c,
-                    Err(e) => {
-                        error!("could not create client: {}", e);
-                        return Outcome::Failure((Status::InternalServerError, ()));
-                    }
-                };
-
-
-                #[derive(Deserialize)]
-                struct GithubUser {
-                    _email: Option<String>,
-                    _name: Option<String>,
-                    login: String,
-                    id: i32,
-                    _avatar_url: Option<String>,
-                }
-
-
-                let user = match client.get().user().execute::<GithubUser>() {
-                    Err(e) => {
-                        error!("could not get github user: {}", e);
-                        return Outcome::Failure((Status::InternalServerError, ()));
-                    }
-                    Ok((_, _, None)) => {
-                        return Outcome::Failure((Status::InternalServerError, ()));
-                    }
-                    Ok((_, _, Some(u))) => u,
-                };
-                (user.id, user.login)
-            }
-            oauth::Provider::Local => unimplemented!(),
-        };
-        Outcome::Success(PartialUser {
-            provider: token.provider,
-            provider_id: uid,
-            provider_name: name,
-            access_token: token.token.access_token,
-        })
-    }
-}
-
-
 
 pub struct CookieUser(pub User);
 
