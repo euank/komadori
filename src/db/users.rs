@@ -18,7 +18,7 @@ pub struct NewUser<'a> {
 #[table_name = "github_accounts"]
 pub struct NewGithubAccount<'a> {
     pub id: i32,
-    pub access_token: &'a str,
+    pub username: &'a str,
 }
 
 #[derive(Insertable)]
@@ -50,7 +50,8 @@ pub struct UpdateUser {
 pub struct GithubAccount {
     pub id: i32,
     user_id: i32,
-    pub access_token: String,
+    access_token: Option<String>,
+    pub username: Option<String>,
 }
 
 #[derive(Debug)]

@@ -4,7 +4,8 @@ table! {
     github_accounts (id) {
         id -> Int4,
         user_id -> Int4,
-        access_token -> Text,
+        access_token -> Nullable<Text>,
+        username -> Nullable<Text>,
     }
 }
 

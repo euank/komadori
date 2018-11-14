@@ -69,11 +69,11 @@ impl User {
                 .map_err(|e| {
                     Error::server_error(format!("error getting accounts: {}", e))
                 })
-            .and_then(|c| {
-                get_github_user(&c.access_token)
-            }).map(|gh| GithubAuthMetadata{
-                username: gh.login
-            })
+                .map(|c| {
+                    GithubAuthMetadata{
+                        username: c.username.unwrap_or("".to_string()),
+                    }
+                })
             .map_err(|e| format!("{:?}", e))
         };
 
@@ -369,14 +369,14 @@ impl CreateUserRequest {
                     Err(e) => return Err(e).into(),
                 };
                 auth_meta.github = Some(Ok(GithubAuthMetadata{
-                    username: gh.login,
+                    username: gh.login.clone(),
                 }));
                 db::users::NewUser{
                     username: &self.username,
                     email: &self.email,
                 }.insert_github(&*conn, db::users::NewGithubAccount{
                     id: self.partial_user.provider_id,
-                    access_token: &self.partial_user.access_token,
+                    username: &gh.login,
                 })
             }
             oauth::Provider::Local => db::users::NewUser{
