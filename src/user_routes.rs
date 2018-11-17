@@ -1,4 +1,5 @@
 use db;
+use uuid::Uuid;
 use types::{User, CookieUser, CreateUserRequest, UpdateUserRequest, AuthUserResp};
 use rocket::State;
 use rocket;
@@ -10,12 +11,26 @@ use errors::JsonResult;
 use provider::{ProviderSet, ProviderAuthRequest};
 
 pub fn routes() -> Vec<rocket::Route> {
-    routes![auth_user, create_user, logout_user, get_user, update_user]
+    routes![auth_user, create_user, logout_user, get_user, get_user_by_uuid, update_user]
 }
 
 #[get("/user", format = "application/json")]
 pub fn get_user(user: CookieUser) -> JsonResult<User> {
     Ok(user.0).into()
+}
+
+#[get("/user/<uuid>", format = "application/json")]
+pub fn get_user_by_uuid(conn: db::Conn, user: CookieUser, uuid: String) -> JsonResult<User> {
+    let uuid = match Uuid::parse_str(&uuid) {
+        Ok(u) => u,
+        Err(e) => {
+            return Err(Error::client_error(format!("invalid uuid: {}", e))).into();
+        }
+    };
+    if !policy::is_allowed(user.0, policy::Action::GetUser(&uuid)) {
+        return Err(Error::client_error("permission denied".to_string())).into();
+    }
+    User::from_uuid(uuid, &conn).into()
 }
 
 
