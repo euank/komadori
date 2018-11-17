@@ -3,7 +3,7 @@ import { doAdminListUsers } from '../actions';
 import AdminManageUsersComponent from '../components/AdminManageUsers';
 
 const mapStateToProps = state => ({
-  users: state.admin.users,
+  users: state.users,
 });
 
 const mapDispatchToProps = dispatch => ({

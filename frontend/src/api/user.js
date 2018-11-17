@@ -92,6 +92,41 @@ class UserAPI {
       });
     });
   }
+
+  static update(userUpdate) {
+    return fetch(`${config.api}/user/create`, {
+      mode: 'cors',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      method: 'POST',
+      body: JSON.stringify(userUpdate),
+    }).then((resp) => {
+      if (!resp.ok) {
+        // TODO: should still try to resp.json and return the json.message bit.
+        throw new Error(`could not update user: ${resp.status}`);
+      }
+      return resp.json().then((respJson) => {
+        if (respJson && respJson.uuid) {
+          return respJson;
+        }
+        throw new Error(`malformed json: ${respJson}`);
+      });
+    });
+  }
+
+  static listUser(uuid) {
+    return fetch(`${config.api}/user/${uuid}`, {
+      method: 'GET',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      mode: 'cors',
+    }).then((resp) => {
+      if (!resp.ok) {
+        throw new Error(`listuser error: ${resp.status}`);
+      }
+      return resp.json();
+    });
+  }
 }
 
 export default UserAPI;

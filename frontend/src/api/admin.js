@@ -39,7 +39,6 @@ class AdminAPI {
       return resp.json();
     }).then(resp => resp.users);
   }
-
   static listGroups() {
     return fetch(`${config.api}/group/listAll`, {
       method: 'GET',

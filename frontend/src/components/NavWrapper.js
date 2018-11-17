@@ -7,6 +7,7 @@ import userUtil from '../util/user';
 import UserDashboard from '../containers/UserDashboardContainer';
 import AdminManageUsers from '../containers/AdminManageUsers';
 import AdminManageGroups from '../containers/AdminManageGroups';
+import EditUser from '../containers/EditUser';
 
 const NavWrapper = ({ user }) => (
   <div className="wrapper">
@@ -32,6 +33,7 @@ const NavWrapper = ({ user }) => (
       <div className="main">
         <Switch>
           <Route path="/admin/users" component={AdminManageUsers} />
+          <Route path="/admin/user/:uuid" component={EditUser} />
           <Route path="/admin/groups" component={AdminManageGroups} />
           <Route path="/user/security" component={Security} />
           <Route path="/" component={UserDashboard} />

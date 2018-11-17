@@ -28,12 +28,22 @@ function handleUserState(state = defaultUserState, action) {
   }
 }
 
+function handleOtherUsersState(state = {}, action) {
+  const userListToMap = arr => arr.reduce((map, u) => ({ [u.uuid]: u, ...map }), {});
+  switch (action.type) {
+    case a.OTHER_USER_FULL_LIST:
+      // replace users, not merge, if the list is complete
+      return userListToMap(action.data);
+    case a.OTHER_USER_LIST:
+      // merge
+      return Object.assign({}, state, userListToMap(action.data));
+    default:
+      return state;
+  }
+}
+
 function handleAdminState(state = {}, action) {
   switch (action.type) {
-    case a.ADMIN_USER_LIST:
-      return Object.assign({}, state, {
-        users: action.data,
-      });
     case a.ADMIN_GROUP_LIST:
       return Object.assign({}, state, {
         groups: action.data,
@@ -101,6 +111,7 @@ const rootReducer = combineReducers({
   user: handleUserState,
   consent: handleConsentState,
   partialUser: handlePartialUserState,
+  users: handleOtherUsersState,
   admin: handleAdminState,
 });
 

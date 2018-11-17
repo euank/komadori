@@ -1,4 +1,4 @@
-import UserApi from '../api/user';
+import UserAPI from '../api/user';
 import HydraAPI from '../api/hydra';
 import AdminAPI from '../api/admin';
 
@@ -38,7 +38,7 @@ export function doGetUser() {
         return Promise.resolve();
       }
     }
-    return UserApi.get()
+    return UserAPI.get()
       .then((u) => {
         if (u.loggedIn) {
           dispatch(receiveUser(u.user));
@@ -75,7 +75,7 @@ export function doUserLogout() {
       throw new Error('cannot logout user: not logged in');
     }
 
-    return UserApi.logout()
+    return UserAPI.logout()
       .then(() => {
         dispatch(userLoggedOut());
       });
@@ -138,7 +138,7 @@ export function doHandleAuth(provider, providerInfo) {
     switch (provider) {
       case 'github':
       case 'local':
-        UserApi.userAuth(provider, providerInfo.code, providerInfo.state)
+        UserAPI.userAuth(provider, providerInfo.code, providerInfo.state)
           .then((resp) => {
             if (resp.type === 'PartialUser') {
               // Needs to create an account
@@ -159,7 +159,7 @@ export function doHandleAuth(provider, providerInfo) {
 
 export function doCreateAccount(userInfo) {
   return (dispatch) => {
-    UserApi.create(userInfo)
+    UserAPI.create(userInfo)
       .then((resp) => {
         dispatch(receiveUser(resp));
       })
@@ -196,12 +196,26 @@ export function doBootstrapAdmin(token) {
   };
 }
 
-export const ADMIN_USER_LIST = 'ADMIN_USER_LIST';
+export const OTHER_USER_FULL_LIST = 'OTHER_USER_FULL_LIST';
 export function doAdminListUsers() {
   return (dispatch) => {
     AdminAPI.listUsers()
       .then((users) => {
-        dispatch({ type: ADMIN_USER_LIST, data: users });
+        dispatch({ type: OTHER_USER_FULL_LIST, data: users });
+      })
+      .catch((e) => {
+        // TODO
+        console.error(e);
+      });
+  };
+}
+
+export const OTHER_USER_LIST = 'OTHER_USER_LIST';
+export function doListOtherUser(uuid) {
+  return (dispatch) => {
+    UserAPI.listUser(uuid)
+      .then((user) => {
+        dispatch({ type: OTHER_USER_LIST, data: [user] });
       })
       .catch((e) => {
         // TODO
